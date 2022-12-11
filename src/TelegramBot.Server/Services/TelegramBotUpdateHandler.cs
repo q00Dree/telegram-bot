@@ -1,8 +1,11 @@
-﻿using Telegram.Bot;
+﻿using System.Net;
+using System.Net.Http;
+using Telegram.Bot;
 using Telegram.Bot.Exceptions;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
+using Telegram.Bot.Types.ReplyMarkups;
 
 namespace TelegramBot.Server.Services;
 
@@ -49,10 +52,21 @@ public class TelegramBotUpdateHandler : IUpdateHandler
         }
     }
 
-    private async Task BotOnMessageReceived(Message message, 
+    private async Task BotOnMessageReceived(Message message,
         CancellationToken cancellationToken)
     {
-        await _botClient.SendTextMessageAsync(message.Chat.Id, message.Text ?? "Я получил твоё сообщение", cancellationToken: cancellationToken);
+        if (message.Text is not { } messageText)
+        {
+            return;
+        }
+
+        var action = messageText.Split(' ')[0] switch
+        {
+            "/random_dad_joke" => SendRandomDadJoke(_botClient, message, cancellationToken),
+            _ => Usage(_botClient, message, cancellationToken)
+        };
+
+        await action;
     }
 
     private Task UnknownUpdateHandlerAsync(Update update,
@@ -61,5 +75,38 @@ public class TelegramBotUpdateHandler : IUpdateHandler
         _logger.LogInformation("Unknown update type: {updateType}", update.Type);
 
         return Task.CompletedTask;
+    }
+
+    private static async Task SendRandomDadJoke(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken)
+    {
+        using var httpClient = new HttpClient(new HttpClientHandler()
+        {
+            Proxy = new WebProxy()
+            {
+                Address = new Uri("http://52.45.139.115:80")
+            },
+            UseProxy = true
+        });
+
+        httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "text/plain");
+
+        var response = await httpClient.GetAsync("https://icanhazdadjoke.com/");
+        var joke = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        await botClient.SendTextMessageAsync(chatId: message.Chat.Id,
+            text: joke,
+            replyMarkup: new ReplyKeyboardRemove(),
+            cancellationToken: cancellationToken);
+    }
+
+    private static async Task Usage(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken)
+    {
+        const string usage = "Usage:\n" +
+                             "/random_dad_joke - send random dad's joke";
+
+        await botClient.SendTextMessageAsync(chatId: message.Chat.Id,
+            text: usage,
+            replyMarkup: new ReplyKeyboardRemove(),
+            cancellationToken: cancellationToken);
     }
 }

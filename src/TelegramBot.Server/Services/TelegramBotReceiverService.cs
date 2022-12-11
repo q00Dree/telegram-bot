@@ -26,7 +26,8 @@ public class TelegramBotReceiverService
             AllowedUpdates = new[]
             {
                 UpdateType.Message
-            }
+            },
+            ThrowPendingUpdates = true
         };
 
         var me = await _botClient.GetMeAsync(stoppingToken);
