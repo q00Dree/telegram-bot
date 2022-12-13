@@ -1,5 +1,4 @@
 ﻿using System.Net;
-using System.Net.Http;
 using Telegram.Bot;
 using Telegram.Bot.Exceptions;
 using Telegram.Bot.Polling;
@@ -62,6 +61,7 @@ public class TelegramBotUpdateHandler : IUpdateHandler
 
         var action = messageText.Split(' ')[0] switch
         {
+            "/echo" => SendEchoedMessage(_botClient, message, cancellationToken),
             "/random_dad_joke" => SendRandomDadJoke(_botClient, message, cancellationToken),
             _ => Usage(_botClient, message, cancellationToken)
         };
@@ -77,13 +77,23 @@ public class TelegramBotUpdateHandler : IUpdateHandler
         return Task.CompletedTask;
     }
 
+    private static async Task SendEchoedMessage(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken)
+    {
+        var echoed = message.Text!.Substring(5);
+
+        await botClient.SendTextMessageAsync(chatId: message.Chat.Id,
+            text: echoed,
+            replyMarkup: new ReplyKeyboardRemove(),
+            cancellationToken: cancellationToken);
+    }
+
     private static async Task SendRandomDadJoke(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken)
     {
         using var httpClient = new HttpClient(new HttpClientHandler()
         {
             Proxy = new WebProxy()
             {
-                Address = new Uri("http://52.45.139.115:80")
+                Address = new Uri("http://103.210.161.198:8998")
             },
             UseProxy = true
         });
@@ -102,6 +112,7 @@ public class TelegramBotUpdateHandler : IUpdateHandler
     private static async Task Usage(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken)
     {
         const string usage = "Usage:\n" +
+                             "/echo - send echo message\n" +
                              "/random_dad_joke - send random dad's joke";
 
         await botClient.SendTextMessageAsync(chatId: message.Chat.Id,
